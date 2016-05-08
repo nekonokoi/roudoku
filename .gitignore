@@ -1,0 +1,8 @@
+# python
+*.pyc
+
+# setting
+setting.json
+
+# OSX
+.DS_Store
