@@ -3,6 +3,7 @@ import falcon
 from chat_function import chat_main
 import json
 import requests
+import os
 
 """
 STATIC
@@ -11,15 +12,19 @@ STATIC
 with open("setting.json","rb") as f:
     setting = json.load(f)
 
-LINE_ENDPOINT = "https://trialbot-api.line.me/v1/events"
+LINE_ENDPOINT = "https://trialbot-api.line.me"
 HEADERS = {
-    'Content-Type': 'application/json; charset=UTF-8',
+    'Content-Type':'application/json; charset=UTF-8',
     "X-Line-ChannelID":setting["channelID"],
     "X-Line-ChannelSecret":setting["channelSecret"],
     "X-Line-Trusted-User-With-ACL":setting["ACL"]
 }
-TO_CHANNEL = setting["channelID"]
+TO_CHANNEL = "1383378250"
 EVENT_TYPE = "138311608800106203"
+PROXIES = {
+    'http':os.environ.get('FIXIE_URL', ''),
+    'https':os.environ.get('FIXIE_URL', '')
+}
 
 class BotResource(object):
     def __init__(self):
@@ -31,10 +36,13 @@ class BotResource(object):
         call this when user acts on Lines Apps
         and this-func callbacks other0func by req-type
         """
-
-        to,res_content= dispatch(req["result"][0])
-
-        raise_event(to,res_content)
+        body = req.stream.read()
+        param = json.loads(body.decode("utf-8"))
+        # wyh list?
+        print param
+        to,res_content= dispatch(param["result"][0])
+        print res_content
+        print raise_event(to,res_content)
         resp.body = json.dumps('OK')
 
 def raise_event(to,content,to_channel=TO_CHANNEL,event_type=EVENT_TYPE):
@@ -42,14 +50,18 @@ def raise_event(to,content,to_channel=TO_CHANNEL,event_type=EVENT_TYPE):
     send text,pic,and others
     """
 
-    data = {
+    data = json.dumps({
         "to":to,
         "toChannel":to_channel,
         "eventType":event_type,
         "content":content
-    }
+    })
 
-    res = requests.post(LINE_ENDPOINT + "/v1/events",data=data, headers=HEADERS)
+    res = requests.post(
+        LINE_ENDPOINT + "/v1/events",
+        data=data,
+        headers=HEADERS,
+        proxies=PROXIES)
     return res
 
 
@@ -61,10 +73,18 @@ def dispatch(req):
     >>> to,text = dispatch({"eventType":"138311609000106303","content":{"from":"test_from"}})
     >>> to
     ['test_from']
+    >>> text['contentType']
+    1
+    >>> text['toType']
+    1
 
     >>> to,text = dispatch({"eventType":"138311609100106403","from":"test_from"})
     >>> to
     ['test_from']
+    >>> text['contentType']
+    1
+    >>> text['toType']
+    1
     """
 
     # require friend
@@ -72,16 +92,16 @@ def dispatch(req):
         text = chat_main("test")
         to = [req["from"]]
 
-        res = make_text_post(text)
-        return to,text
+        data = make_text_post(text)
+        return to,data
 
     # get chat
     elif req["eventType"] == "138311609000106303":
         text = chat_main("test")
         to = [req["content"]["from"]]
 
-        make_text_post(text)
-        return to,text
+        data = make_text_post(text)
+        return to,data
 
 
 # make_contents_functions
